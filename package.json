@@ -1,0 +1,15 @@
+{
+  "name": "angular-pd-data",
+  "description": "A project by platdesign.de",
+  "author": "Christian Blaschke <mail@platdesign.de>",
+  "version": "0.0.0",
+  "dependencies": {},
+  "repository": "",
+  "devDependencies": {
+    "angular": "^1.4.4",
+    "baconjs": "^0.7.71",
+    "gulp": "^3.9.0",
+    "pd-gulp-js": "^0.3.1",
+    "ramda": "^0.17.1"
+  }
+}

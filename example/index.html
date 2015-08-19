@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>ng-data</title>
+	<script type="text/javascript" src="/public/js/vendor.js"></script>
+
+</head>
+<body>
+
+	<div ng-app="app">
+
+		<pre>{{ store.status() | json:2 }}</pre>
+
+		<div style="display: inline-block; width: 40%; border: 1px solid red; vertical-align: top; margin: 10px; padding: 1em;">
+			<h1>Videos</h1>
+			Anzahl: {{ videos.length || 0 }}
+			<ul>
+				<button ng-click="videos.huhu()">HUHU</button>
+				<li ng-repeat="video in videos">
+					{{ video.attr.createdAt }}
+					<input type="text" ng-model="video.attr.title">
+					<button ng-click="video.destroy()">Destroy</button>
+					<button ng-click="video.remove()">Remove</button>
+					<button ng-click="video.save()">Save</button>
+					<button ng-click="video.start()">Start</button>
+					<hr>
+
+
+					Cues {{ video.cues.length }}
+
+					<div>
+						<div ng-repeat="cue in video.cues">
+							{{cue}}
+							<button ng-click="cue.save()">Save</button>
+						</div>
+						<button ng-click="video.cues.add({ title: 'asd'})">Add Cue</button>
+					</div>
+
+				</li>
+
+
+			</ul>
+			<div ng-init="newItem = {}">
+				<input type="text" ng-model="newItem.title">
+				<button ng-click="videos.create(newItem); newItem = {}">Create</button>
+				<button ng-click="videos.add(newItem); newItem = {}">Add</button>
+			</div>
+		</div>
+
+		<div style="display: inline-block; width: 40%; border: 1px solid green; margin: 10px; padding: 1em;">
+			<h1>Videos2</h1>
+			Anzahl: {{ videos2.length || 0 }}
+			<ul>
+				<li ng-repeat="video in videos2">
+					{{ video.attr.createdAt }}
+					<input type="text" ng-model="video.attr.title">
+					<button ng-click="video.destroy()">Destroy</button>
+					<button ng-click="video.remove()">Remove</button>
+					<button ng-click="video.save()">Save</button>
+
+
+					Cues {{ video.cues.length }}
+
+					<div>
+						<div ng-repeat="cue in video.cues">{{cue}}</div>
+						<button ng-click="video.cues.add({ title: 'asd'})">Add Cue</button>
+					</div>
+				</li>
+
+
+			</ul>
+			<div>
+				<button ng-click="videos2.create({})">Create</button>
+				<button ng-click="videos2.add({})">Add</button>
+			</div>
+		</div>
+
+		<div style="display: inline-block; width: 40%; border: 1px solid green; margin: 10px; padding: 1em;">
+			<h1>Cues</h1>
+			Anzahl: {{ cues.length || 0 }}
+			<ul>
+				<li ng-repeat="video in cues">
+					{{ video.attr.createdAt }}
+					{{ video.attr.videoId }}
+					<input type="text" ng-model="video.attr.title">
+					<button ng-click="video.destroy()">Destroy</button>
+					<button ng-click="video.remove()">Remove</button>
+					<button ng-click="video.save()">Save</button>
+				</li>
+
+
+			</ul>
+			<div>
+				<button ng-click="cues.create({})">Create</button>
+				<button ng-click="cues.add({})">Add</button>
+			</div>
+		</div>
+
+
+
+	</div>
+	<script type="text/javascript" src="/public/js/app.js"></script>
+</body>
+</html>
