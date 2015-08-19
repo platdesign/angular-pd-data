@@ -1,10 +1,10 @@
 {
   "name": "angular-pd-data",
-  "description": "A project by platdesign.de",
+  "description": "reactive angular data orm",
   "author": "Christian Blaschke <mail@platdesign.de>",
   "version": "0.0.0",
   "dependencies": {},
-  "repository": "",
+  "repository": "https://github.com/platdesign/angular-pd-data.git",
   "devDependencies": {
     "angular": "^1.4.4",
     "baconjs": "^0.7.71",
