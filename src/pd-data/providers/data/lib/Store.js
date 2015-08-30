@@ -56,6 +56,17 @@ function Store() {
 	}
 
 
+	this.getAdapter = function(adapterName) {
+		adapterName = adapterName || this.defaultAdapterName;
+
+		if(!this.adapters[adapterName]) {
+			throw new Error('Cant find adapter '+adapterName);
+		}
+
+		return this.adapters[adapterName];
+	}
+
+
 	this.status = function() {
 		var adapterNames = Object.keys(this.adapters);
 		var resourcesNames = Object.keys(resources);
@@ -80,9 +91,6 @@ function Store() {
 		angular.forEach(adapters, function(value, key){
 			status.adapters.status[key] = value.status();
 		});
-
-
-
 
 		return status;
 	}

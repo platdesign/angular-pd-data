@@ -68,15 +68,45 @@ app.run(['Data', '$rootScope', 'pdDataAdapterHttp', function(Data, $rootScope, $
 
 
 
-	$rootScope.videos = Video.find();
-	$rootScope.videos2 = Video.find({ title: 'a' });
-
-	$rootScope.videos.load();
-
-	$rootScope.cues = Cue.find();
-
-	$rootScope.cues.load();
+	function VideoStatus(res) {
+		console.log(Video.status());
+		return res;
+	}
 
 
-	$rootScope.store = backend;
+	Video.load()
+	.then(VideoStatus)
+	.then(function(coll) {
+		return coll[0].load()
+	})
+	.then(VideoStatus)
+
+	.then(function() {
+		return Video.create({ title:'Testvideo' });
+	})
+
+
+	.then(VideoStatus)
+	.then(function(model) {
+		return Video.loadById(model.id);
+	})
+	.then(VideoStatus)
+	.then(function(model) {
+		model.attr.title = 'Neuer Titel';
+		return model.save();
+	})
+	.then(VideoStatus)
+	.then(function(model) {
+		return model.destroy();
+	})
+	.then(VideoStatus);
+
+
+/*
+	Video.loadById(1)
+	.then(function(model) {
+		console.log(model);
+	})
+*/
+
 }]);

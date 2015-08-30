@@ -1,0 +1,12 @@
+{
+  "videos": [
+    {
+      "title": "Testvideo",
+      "id": 1
+    },
+    {
+      "title": "Testvideo",
+      "id": 2
+    }
+  ]
+}

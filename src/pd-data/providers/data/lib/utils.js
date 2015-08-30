@@ -39,6 +39,15 @@ utils.registerMethodsOnHost = _.curry(function(host, methods) {
 });
 
 
+utils.registerVirtualsOnHost = _.curry(function(host, virtuals) {
+	if(virtuals) {
+		Object.keys(virtuals).forEach(function(name) {
+			Object.defineProperty(host, name, virtuals[name]);
+		});
+	}
+});
+
+
 
 
 utils.string2hash = function(string) {
@@ -54,7 +63,12 @@ utils.string2hash = function(string) {
 
 
 utils.collectionNameFromConfig = function(config) {
-
-	return this.string2hash(JSON.stringify(config.where || {}));
-
+	return config.name || this.string2hash(JSON.stringify(config.where || {}));
 };
+
+
+utils.idFromRaw = _.curry(function(modelConfig, raw) {
+	return raw[modelConfig.primary];
+});
+
+

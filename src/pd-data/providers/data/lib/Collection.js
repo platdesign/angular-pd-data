@@ -12,19 +12,25 @@ function createCollection(config, resource) {
 
 	var collection = [];
 
-
-
-
+	/**
+	 * Create filter function from config.where query object
+	 */
 	var whereFilter = utils.where2filter(config.where);
 
-
-
+	config.relationFilter = config.relationFilter || function(){ return true; };
 
 
 	collection.config = config;
 
+	collection.state = {
+		loading: false
+	};
+
 	// private
 	var indexOfRaw = utils.indexOfRawInCollection(collection);
+
+	var idFromRaw = utils.idFromRaw(resource.config.model);
+
 
 
 	function addOrMerge(raw) {
@@ -43,7 +49,7 @@ function createCollection(config, resource) {
 	}
 
 	function equipOne(raw) {
-		if(!whereFilter(raw)) {
+		if(!whereFilter(raw) || !config.relationFilter(raw)) {
 			remove(raw);
 		} else {
 			addOrMerge(raw);
@@ -53,7 +59,9 @@ function createCollection(config, resource) {
 
 	// public
 	collection.subscribe = function(down) {
-		this.down = down.filter( e.filterByFunction( whereFilter ) );
+		this.down = down
+			.filter( e.filterByFunction( whereFilter ) )
+			.filter( e.filterByFunction( config.relationFilter ));
 
 		var on;
 
@@ -63,13 +71,14 @@ function createCollection(config, resource) {
 
 
 		on = e.onStreamValueCallMethod( this.down );
-			on('add', e.executeWith(addOrMerge, 'data'));
+			on('add', e.executeWith(equipOne, 'data'));
 
 		return this;
 	};
 
 
 	collection.add = function(raw) {
+		raw = raw || {};
 		raw = angular.copy(raw);
 		angular.merge(raw, config.where);
 		resource.add(raw);
@@ -80,8 +89,13 @@ function createCollection(config, resource) {
 	};
 
 	collection.create = function(raw) {
+		raw = raw || {};
 		angular.merge(raw, config.where);
-		return resource.create(raw);
+		return resource.adapter.createPath(endpointPath(), raw)
+		.then(function(attr) {
+			resource.add(attr);
+			return collection.findById(idFromRaw(attr));
+		});
 	};
 
 	collection.newModel = function(raw, config) {
@@ -97,8 +111,56 @@ function createCollection(config, resource) {
 		return model;
 	}
 
-	collection.load = function() {
-		return resource.load();
+	function endpointPath() {
+		if(collection.config.parentModel) {
+			return collection.config.parentModel.endpointPath() + '/' + resource.config.path;
+		}
+		return resource.config.path;
+	}
+
+	collection.load = function(query) {
+		this.state.loading = true;
+
+		if(config.where) {
+			query = angular.merge({}, { where:config.where }, query);
+		}
+
+		return resource.adapter.getPath(endpointPath(), query)
+		.then(function(items) {
+			items.forEach(function(item){
+				resource.merge(item);
+			});
+			this.state.loading = false;
+			return this;
+		}.bind(this));
+	}
+
+	collection.loadLazy = function() {
+		this.load();
+		return this;
+	}
+
+	collection.findById = function(id) {
+		return this.filter(function(model) {
+			return String(model.id) === String(id);
+		})[0];
+	};
+
+
+	collection.loadById = function(id, query) {
+		query = query || {};
+
+		var existing = this.findById(id);
+		if(existing) {
+			return existing.load();
+		} else {
+			var path = endpointPath() + '/' + id;
+			return resource.adapter.getPath(path, query)
+			.then(function(raw) {
+				resource.merge(raw);
+				return this.findById(id);
+			}.bind(this));
+		}
 	}
 
 	utils.registerMethodsOnHost(collection, config.methods);

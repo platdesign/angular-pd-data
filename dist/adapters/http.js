@@ -15,6 +15,45 @@ mod.factory('pdDataAdapterHttp', ['$http', function($http){
 			return res.data;
 		};
 
+		this.getPath = function(path) {
+			return $http({
+				method: 'GET',
+				url: options.baseUrl +'/'+ path
+			}).then(transformResult, transformResult);
+		};
+
+
+		this.createPath = function(path, doc) {
+			return $http({
+				method: 'POST',
+				data: doc,
+				url: options.baseUrl +'/'+ path
+			}).then(transformResult, transformResult);
+		};
+
+		this.updatePath = function(path, doc) {
+			return $http({
+				method: 'PUT',
+				data: doc,
+				url: options.baseUrl +'/'+ path
+			}).then(transformResult, transformResult);
+		};
+
+		this.deletePath = function(path, doc) {
+			return $http({
+				method: 'DELETE',
+				data: doc,
+				url: options.baseUrl +'/'+ path
+			}).then(transformResult, transformResult);
+		};
+
+
+
+
+
+
+
+
 
 		this.createModel = function(model, path) {
 			return $http({
@@ -53,7 +92,12 @@ mod.factory('pdDataAdapterHttp', ['$http', function($http){
 			}).then(transformResult, transformResult);
 		}
 
-
+		this.loadModel = function(model, path) {
+			return $http({
+				method: 'GET',
+				url: options.baseUrl +'/'+ path
+			}).then(transformResult, transformResult);
+		}
 	};
 }]);
 

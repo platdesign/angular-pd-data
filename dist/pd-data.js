@@ -4140,6 +4140,22 @@ var mod = module.exports = angular.module('pd.data', []);
 // Providers
 mod.provider('Data', require('./providers/data'));
 
+mod.directive('pdDataAutosave', function() {
+	return {
+		restrict: 'A',
+		scope: false,
+		require: 'ngModel',
+		link: function(scope, el, attr, modelCtrl) {
+
+			modelCtrl.$viewChangeListeners.push(function() {
+				scope[attr.pdDataAutosave].triggerAutosave();
+			});
+		},
+		controller: ['$scope', function($scope) {
+
+		}]
+	}
+});
 
 },{"./providers/data":24}],24:[function(require,module,exports){
 'use strict';
@@ -4209,19 +4225,20 @@ function createCollection(config, resource) {
 
 	var collection = [];
 
-
-
-
+	/**
+	 * Create filter function from config.where query object
+	 */
 	var whereFilter = utils.where2filter(config.where);
-
-
-
 
 
 	collection.config = config;
 
+
 	// private
 	var indexOfRaw = utils.indexOfRawInCollection(collection);
+
+	var idFromRaw = utils.idFromRaw(resource.config.model);
+
 
 
 	function addOrMerge(raw) {
@@ -4267,6 +4284,7 @@ function createCollection(config, resource) {
 
 
 	collection.add = function(raw) {
+		raw = raw || {};
 		raw = angular.copy(raw);
 		angular.merge(raw, config.where);
 		resource.add(raw);
@@ -4277,8 +4295,13 @@ function createCollection(config, resource) {
 	};
 
 	collection.create = function(raw) {
+		raw = raw || {};
 		angular.merge(raw, config.where);
-		return resource.create(raw);
+		return resource.adapter.createPath(endpointPath(), raw)
+		.then(function(attr) {
+			resource.add(attr);
+			return collection.findById(idFromRaw(attr));
+		});
 	};
 
 	collection.newModel = function(raw, config) {
@@ -4294,8 +4317,47 @@ function createCollection(config, resource) {
 		return model;
 	}
 
+	function endpointPath() {
+		if(collection.config.parentModel) {
+			return collection.config.parentModel.endpointPath() + '/' + resource.config.path;
+		}
+		return resource.config.path;
+	}
+
 	collection.load = function() {
-		return resource.load();
+		return resource.adapter.getPath(endpointPath())
+		.then(function(items) {
+			items.forEach(function(item){
+				resource.merge(item);
+			});
+			return this;
+		}.bind(this));
+	}
+
+	collection.loadLazy = function() {
+		this.load();
+		return this;
+	}
+
+	collection.findById = function(id) {
+		return this.filter(function(model) {
+			return String(model.id) === String(id);
+		})[0];
+	};
+
+
+	collection.loadById = function(id) {
+		var existing = this.findById(id);
+		if(existing) {
+			return existing.load();
+		} else {
+			var path = endpointPath() + '/' + id;
+			return resource.adapter.getPath(path)
+			.then(function(raw) {
+				resource.merge(raw);
+				return this.findById(id);
+			}.bind(this));
+		}
 	}
 
 	utils.registerMethodsOnHost(collection, config.methods);
@@ -4323,7 +4385,14 @@ module.exports = Model;
 
 function Model(raw, config, resource) {
 	this.attr = raw;
+	this.__proto__ = raw;
 
+	var model = this;
+
+	var idFromRaw = utils.idFromRaw(config);
+
+
+	// Define id property
 	Object.defineProperty(this, 'id', {
 		get: function() {
 			return raw[config.primary];
@@ -4332,6 +4401,11 @@ function Model(raw, config, resource) {
 			raw[config.primary] = val;
 		}
 	});
+
+
+
+
+
 
 	this.endpointPath = function() {
 		var path='';
@@ -4347,32 +4421,112 @@ function Model(raw, config, resource) {
 		return path;
 	}
 
-	this.remove = function() {
-		resource.remove(this.attr);
-	};
 
-	this.save = function() {
 
-		if(this.id) {
-			return resource.update(this.attr, this.endpointPath());
-		} else {
-			return resource.create(this.attr, this.endpointPath());
-		}
-	};
 
-	this.destroy = function() {
-		return resource.destroy(this.attr, this.endpointPath());
-	};
+
+
 
 	this._delete = function() {
 		console.log('TODO: Tidy up relations on delete');
 	}
 
-	utils.registerMethodsOnHost(this, config.methods);
 
+
+
+
+
+
+
+
+
+	/**
+	 * Load an existing model from resource
+	 * @return {Model} Promise which resolves with model instance
+	 */
+	this.load = function() {
+		return resource.adapter
+			.getPath(this.endpointPath())
+			.then(function(raw) {
+				resource.merge(raw);
+				return this;
+			}.bind(this));
+	};
+
+
+	/**
+	 * Create or update a model on resource adapter
+	 * @return {Model} Promise which resolves with model instance
+	 */
+	this.save = function() {
+		var promise;
+		if(this.id) {
+			promise = resource.adapter.updatePath(this.endpointPath(), this.attr);
+		} else {
+			promise = resource.adapter.createPath(this.endpointPath(), this.attr);
+		}
+		return promise.then(function(raw) {
+			resource.merge(raw);
+			return this;
+		}.bind(this));
+	};
+
+
+	/**
+	 * Destroy a model an remove it from resource
+	 * @return {NULL}
+	 */
+	this.destroy = function() {
+		console.log('destroy')
+		return resource.adapter.deletePath(this.endpointPath(), this.attr)
+		.then(function() {
+			return this.remove();
+		}.bind(this));
+	};
+
+
+	/**
+	 * Remove the model from resource
+	 * @return {[type]} [description]
+	 */
+	this.remove = function() {
+		resource.remove(this.attr);
+	};
+
+
+
+
+
+
+
+
+
+
+
+	var autosaveTimer;
+	this.triggerAutosave = function() {
+
+		clearTimeout(autosaveTimer);
+		autosaveTimer = setTimeout(function() {
+			this.save();
+		}.bind(this), 600);
+
+	};
+
+	model.relations = {};
+	this.loadRelations = function() {
+		Object.keys(model.relations).forEach(function(key) {
+			var relation = model.relations[key];
+			relation.load();
+
+		});
+	};
+
+	utils.registerMethodsOnHost(this, config.methods);
+	utils.registerVirtualsOnHost(this, config.virtuals);
 
 	if(config.relations) {
-		var model = this;
+
 
 		if(config.relations.hasMany) {
 			Object.keys(config.relations.hasMany).forEach(function(relationResourceName) {
@@ -4401,6 +4555,7 @@ function Model(raw, config, resource) {
 						}
 
 						var coll = Resource.collection(config);
+						model.relations[relation.field] = coll;
 						return coll;
 					}
 				});
@@ -4421,30 +4576,55 @@ var e = require('./e.js');
 var Collection = require('./Collection.js');
 var Bacon = require('baconjs');
 var utils = require('./utils.js');
-
+var _ = require('./_.js');
 
 function Resource(config, store) {
 
 	var resource = this;
 
-	var defaultConfig = {
-	};
+	var defaultConfig = {};
+
 
 	this.config = angular.merge({}, defaultConfig, config);
 	this.store = store;
 
+
 	this.sendDown = new Bacon.Bus();
+
+
+	this.adapter = store.getAdapter(config.adapter);
+
+
+	this.sync = {
+		loadModel: function(model) {
+
+		},
+		localCollection: function(collection) {
+
+		},
+		loadModelById: function(collection, id) {
+
+		},
+		deleteModel: function(model) {
+
+		},
+		updateModel: function(model) {
+
+		},
+		createModel: function(model) {
+
+		}
+	};
+
 
 	// EventSender
 	var sendEvent 	= e.sendEvent(this.sendDown, this.config.name);
-	var sendAdd 	= sendEvent('add');
+	var sendAdd 		= sendEvent('add');
 	var sendRemove 	= sendEvent('remove');
 	var sendEquip 	= sendEvent('equip');
 	var sendEquipOne= sendEvent('equipOne');
 
-
-
-
+	var idFromRaw = utils.idFromRaw(config.model);
 
 
 	this.subscribe = function(down) {
@@ -4454,8 +4634,40 @@ function Resource(config, store) {
 	};
 
 
+
+
+
 	var collectionCache = {};
 	var itemStore = [];
+	var resourceCollection;
+
+
+	itemStore.getById = function(id) {
+		return this.filter(function(item) {
+			return item[config.model.primary] === id;
+		})[0];
+	};
+	itemStore.removeItem = function(item) {
+		var index = this.indexOf(item)
+		this.splice(index, 1);
+	};
+
+	itemStore.merge = function(item) {
+		var id = idFromRaw(item);
+		var existing = this.getById(id);
+		if(existing) {
+			angular.merge(existing, item);
+			return existing;
+		} else {
+			this.push(item);
+			return item;
+		}
+	};
+
+	this.itemStore = itemStore;
+
+
+
 
 	this.collection = function(config) {
 		config = config || {};
@@ -4482,6 +4694,9 @@ function Resource(config, store) {
 		}
 	}
 
+
+
+
 	this.status = function() {
 		return {
 			collections: Object.keys(collectionCache).length,
@@ -4490,12 +4705,88 @@ function Resource(config, store) {
 	};
 
 
+
+
+
+
+	this.find = function(where){
+		return this.collection({ where:where });
+	};
+
+	this.findById = function(id){
+		return this.find().findById(id);
+	};
+
+	this.load = function(where){
+		return this.find(where).load();
+	};
+
+	this.loadLazy = function(where) {
+		return this.find(where).loadLazy();
+	};
+
+	/**
+	 * Merge an item with item Store and notify all collections
+	 * @param  {Object} raw raw model attributes
+	 * @return {Object} raw|existingRaw
+	 */
+	this.merge = function(raw) {
+		raw = itemStore.merge(raw);
+		sendEquipOne(raw);
+		return raw;
+	}
+
+	/**
+	 * Adds a new raw object to itemStore and notifies all collections
+	 * @param {Object} raw raw object attributes
+	 */
+	this.add = function(raw){
+		itemStore.push(raw);
+		sendAdd(raw);
+	};
+
+
+	/**
+	 * Removes a raw object from itemStore and notifies all collections
+	 * @param  {Object} raw Raw model attributes
+	 */
+	this.remove = function(raw){
+		itemStore.removeItem(raw);
+		sendRemove(raw);
+	};
+
+
+	/**
+	 * Create a new model on main collection
+	 * @param  {Object} attr Raw model attributes
+	 * @return {Promise}      Promise resolves with model instance
+	 */
+	this.create = function(attr) {
+		return this.find().create(attr);
+	};
+
+
+	/**
+	 * Load a model by id
+	 * @param  {String|Int} id Id to load
+	 * @return {Promise}    Promise resolves with model instance
+	 */
+	this.loadById = function(id){
+		return this.find().loadById(id);
+	};
+
+
+
+/*
+
 	this.find = function(where) {
 		return this.collection({ where: where });
 	}
 
 
-
+	this.loadById = function(id) {
+		return this.find().loadById(id);
+	}
 
 
 
@@ -4512,13 +4803,7 @@ function Resource(config, store) {
 
 
 	var getAdapter = function() {
-		var adapterName = config.adapter || store.defaultAdapterName;
-
-		if(!store.adapters[adapterName]) {
-			throw new Error('Cant find adapter '+adapterName);
-		}
-
-		return store.adapters[adapterName];
+		return store.getAdapter(config.adapter);
 	};
 
 
@@ -4546,19 +4831,44 @@ function Resource(config, store) {
 	};
 
 	this.load = function(path, query) {
+		query = query || {};
+
 		return getAdapter().load(path || this.config.path)
 		.then(function(items) {
 			items.forEach(function(item) {
 				resource.add(item);
+				sendEquipOne(item);
 			});
-		})
+		}.bind(this))
 	};
+
+	this.loadOne = function(raw, path) {
+		return getAdapter().loadModel(raw, path || this.config.path)
+		.then(function(res) {
+			angular.merge(raw, res);
+			itemStore.push(raw);
+			sendEquipOne(raw);
+		});
+	}
+*/
+
 
 }
 
 module.exports = Resource;
 
-},{"./Collection.js":26,"./e.js":31,"./utils.js":32,"baconjs":1}],29:[function(require,module,exports){
+
+
+
+
+
+
+
+
+
+
+
+},{"./Collection.js":26,"./_.js":30,"./e.js":31,"./utils.js":32,"baconjs":1}],29:[function(require,module,exports){
 'use strict';
 
 
@@ -4617,6 +4927,17 @@ function Store() {
 	}
 
 
+	this.getAdapter = function(adapterName) {
+		adapterName = adapterName || this.defaultAdapterName;
+
+		if(!this.adapters[adapterName]) {
+			throw new Error('Cant find adapter '+adapterName);
+		}
+
+		return this.adapters[adapterName];
+	}
+
+
 	this.status = function() {
 		var adapterNames = Object.keys(this.adapters);
 		var resourcesNames = Object.keys(resources);
@@ -4641,9 +4962,6 @@ function Store() {
 		angular.forEach(adapters, function(value, key){
 			status.adapters.status[key] = value.status();
 		});
-
-
-
 
 		return status;
 	}
@@ -4776,6 +5094,15 @@ utils.registerMethodsOnHost = _.curry(function(host, methods) {
 });
 
 
+utils.registerVirtualsOnHost = _.curry(function(host, virtuals) {
+	if(virtuals) {
+		Object.keys(virtuals).forEach(function(name) {
+			Object.defineProperty(host, name, virtuals[name]);
+		});
+	}
+});
+
+
 
 
 utils.string2hash = function(string) {
@@ -4791,9 +5118,14 @@ utils.string2hash = function(string) {
 
 
 utils.collectionNameFromConfig = function(config) {
-
 	return this.string2hash(JSON.stringify(config.where || {}));
-
 };
+
+
+utils.idFromRaw = _.curry(function(modelConfig, raw) {
+	return raw[modelConfig.primary];
+});
+
+
 
 },{"./_.js":30}]},{},[23]);
