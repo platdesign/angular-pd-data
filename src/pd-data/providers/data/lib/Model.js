@@ -16,6 +16,11 @@ function Model(raw, config, resource) {
 
 	var model = this;
 
+	model.state = {
+		loading: false,
+		modifiedDuringSave: false
+	};
+
 	var idFromRaw = utils.idFromRaw(config);
 
 
@@ -74,10 +79,12 @@ function Model(raw, config, resource) {
 	this.load = function(query) {
 		query = query || {};
 
+		this.state.loading = true;
 		return resource.adapter
 			.getPath(this.endpointPath(), query)
 			.then(function(raw) {
 				resource.merge(raw);
+				this.state.loading = false;
 				return this;
 			}.bind(this));
 	};
@@ -88,17 +95,39 @@ function Model(raw, config, resource) {
 	 * @return {Model} Promise which resolves with model instance
 	 */
 	this.save = function() {
+
+		if(this.state.loading) {
+			// TODO: try saving until state.loading === false
+			// and return a promise which resolves when model is really saved
+			// or it took too many trials
+
+			this.triggerAutosave();
+
+			return;
+		}
+
 		var promise;
+		this.state.loading = true;
 		if(this.id) {
 			promise = resource.adapter.updatePath(this.endpointPath(), this.attr);
 		} else {
 			promise = resource.adapter.createPath(this.endpointPath(), this.attr);
 		}
+
 		return promise.then(function(raw) {
-			resource.merge(raw);
+			if(!this.state.modifiedDuringSave) {
+				resource.merge(raw);
+			}
+			this.modifiedDuringSave = false;
+			this.state.loading = false;
 			return this;
 		}.bind(this));
 	};
+
+
+	this.createPath = function(path, data) {
+		return resource.adapter.createPath(this.endpointPath() + path, data);
+	}
 
 
 	/**
@@ -106,9 +135,10 @@ function Model(raw, config, resource) {
 	 * @return {NULL}
 	 */
 	this.destroy = function() {
-		console.log('destroy')
+		this.state.loading = true;
 		return resource.adapter.deletePath(this.endpointPath(), this.attr)
 		.then(function() {
+			this.state.loading = false;
 			return this.remove();
 		}.bind(this));
 	};
@@ -134,6 +164,12 @@ function Model(raw, config, resource) {
 
 	var autosaveTimer;
 	this.triggerAutosave = function() {
+
+		if(this.state.loading) {
+			this.state.modifiedDuringSave = true;
+		} else {
+			this.state.modifiedDuringSave = false;
+		}
 
 		clearTimeout(autosaveTimer);
 		autosaveTimer = setTimeout(function() {
