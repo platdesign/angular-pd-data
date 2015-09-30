@@ -24,27 +24,6 @@ function Resource(config, store) {
 	this.adapter = store.getAdapter(config.adapter);
 
 
-	this.sync = {
-		loadModel: function(model) {
-
-		},
-		localCollection: function(collection) {
-
-		},
-		loadModelById: function(collection, id) {
-
-		},
-		deleteModel: function(model) {
-
-		},
-		updateModel: function(model) {
-
-		},
-		createModel: function(model) {
-
-		}
-	};
-
 
 	// EventSender
 	var sendEvent 	= e.sendEvent(this.sendDown, this.config.name);
