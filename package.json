@@ -2,8 +2,8 @@
   "name": "angular-pd-data",
   "description": "reactive angular data orm",
   "author": "Christian Blaschke <mail@platdesign.de>",
-  "version": "0.0.1",
-  "main":"index.js",
+  "version": "0.0.2",
+  "main": "index.js",
   "repository": "https://github.com/platdesign/angular-pd-data.git",
   "devDependencies": {
     "angular": "^1.4.4",
