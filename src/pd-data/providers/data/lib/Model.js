@@ -12,7 +12,7 @@ module.exports = Model;
 
 function Model(raw, config, resource) {
 	this.attr = raw;
-	this.__proto__ = raw;
+	//this.__proto__ = raw;
 
 	var model = this;
 
@@ -125,8 +125,16 @@ function Model(raw, config, resource) {
 	};
 
 
-	this.createPath = function(path, data) {
-		return resource.adapter.createPath(this.endpointPath() + path, data);
+	this.createPath = function(path, data, mergeData) {
+		var promise = resource.adapter.createPath(this.endpointPath() + path, data);
+
+		if(mergeData) {
+			promise.then(function(raw) {
+				resource.merge(raw);
+			});
+		}
+
+		return promise;
 	}
 
 
@@ -265,6 +273,42 @@ function Model(raw, config, resource) {
 
 			});
 		}
+
+
+		// CUSTOM
+		if(config.relations.custom) {
+
+			Object.keys(config.relations.custom)
+			.forEach(function(relationResourceName) {
+
+				var relConfig = config.relations.custom[relationResourceName];
+
+				var Resource = resource.store[relationResourceName];
+
+
+				Object.defineProperty(model, relConfig.field, {
+					get: function() {
+
+						var config = {
+							name: 'customRelation'+resource.config.name+'.model.'+model.id,
+							parentModel: model,
+							relationFilter: function(raw) {
+								return relConfig.filter.apply(model, [raw]);
+							}
+						};
+
+						var coll = Resource.collection(config);
+						model.relations[relConfig.field] = coll;
+
+						return coll;
+					}
+				});
+
+			});
+
+
+		}
+
 
 	}
 

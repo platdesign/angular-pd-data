@@ -16,6 +16,7 @@ mod.directive('pdDataAutosave', function() {
 		require: 'ngModel',
 		link: function(scope, el, attr, modelCtrl) {
 
+
 			if(['text'].indexOf(el.attr('type')) > -1) {
 				modelCtrl.$options = {
 					updateOn: 'blur',
@@ -29,8 +30,10 @@ mod.directive('pdDataAutosave', function() {
 
 			modelCtrl.$viewChangeListeners.push(function() {
 
+				var model = scope.$eval(attr.pdDataAutosave);
+
 				if(modelCtrl.$dirty && modelCtrl.$valid) {
-					scope[attr.pdDataAutosave].triggerAutosave();
+					model.triggerAutosave();
 				}
 			});
 		},
